@@ -1,0 +1,5 @@
+anthropic>=1.0,<2
+mcp>=1.2,<2
+uv>=0.5             # provides the `uvx` command used to launch alpaca-mcp-server as a subprocess
+PyYAML>=6.0,<7
+tzdata>=2024.1       # python:3.12-slim has no system tz database; zoneinfo needs this for America/New_York

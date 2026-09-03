@@ -1,0 +1,29 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: muthur-status-web-waf-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # /api/stream is a long-lived SSE connection. Disable nginx's default
+    # response buffering, which would delay pushes; raise the read timeout
+    # above the server's ~15s keepalive so a healthy idle connection survives.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+spec:
+  tls:
+    - hosts:
+        - muthur.avtechlab.com
+      secretName: avtechlab-com-tls
+  rules:
+    - host: muthur.avtechlab.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: muthur-status-web
+                port:
+                  number: 80

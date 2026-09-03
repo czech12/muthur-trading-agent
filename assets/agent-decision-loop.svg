@@ -1,0 +1,71 @@
+<svg width="960" height="716" viewBox="0 0 960 716" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MU/TH/UR 8400 agent decision loop: the Agent Decision Loop calls Claude Sonnet 5 roughly hourly and routes every order through a Risk Gate that can approve or reject with no bypass, reaching Alpaca through its MCP server">
+  <defs>
+    <radialGradient id="loopGlow" cx="50%" cy="0%" r="75%">
+      <stop offset="0%" stop-color="#33ff66" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#33ff66" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arrowDim" markerUnits="userSpaceOnUse" markerWidth="15" markerHeight="15" refX="12" refY="6.75" orient="auto">
+      <path d="M0,0 L13.5,6.75 L0,13.5 Z" fill="#6b6b76"/>
+    </marker>
+    <marker id="arrowGate" markerUnits="userSpaceOnUse" markerWidth="15" markerHeight="15" refX="12" refY="6.75" orient="auto">
+      <path d="M0,0 L13.5,6.75 L0,13.5 Z" fill="#33ff66"/>
+    </marker>
+    <marker id="arrowRejected" markerUnits="userSpaceOnUse" markerWidth="15" markerHeight="15" refX="12" refY="6.75" orient="auto">
+      <path d="M0,0 L13.5,6.75 L0,13.5 Z" fill="#a8a8b3"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="716" fill="#0a0a0d"/>
+  <rect width="960" height="716" fill="url(#loopGlow)"/>
+
+  <rect x="20" y="20" width="920" height="676" rx="16" fill="#000000" stroke="#1c8f3d" stroke-width="1.5"/>
+  <line x1="20" y1="80" x2="940" y2="80" stroke="#1c8f3d" stroke-width="1"/>
+  <circle cx="54" cy="50" r="4.5" fill="#33ff66"/>
+  <circle cx="70" cy="50" r="4.5" fill="#33ff66"/>
+  <circle cx="86" cy="50" r="4.5" fill="#33ff66"/>
+  <text x="104" y="54" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="11" font-weight="700" fill="#9fffb8" letter-spacing="1">MU/TH/UR 8400 — AGENT DECISION LOOP</text>
+  <text x="908" y="54" text-anchor="end" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#9fffb8" letter-spacing="1">NOSTROMO</text>
+
+  <rect x="40" y="94" width="880" height="456" rx="10" fill="#0a0a0d" stroke="#26262e"/>
+  <text x="58" y="115" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="700" fill="#6b6b76" letter-spacing="1.5">~HOURLY DURING MARKET HOURS</text>
+
+  <rect x="210" y="128" width="280" height="76" rx="10" fill="#141419" stroke="#1c8f3d" stroke-width="1.5"/>
+  <text x="350" y="161" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="18" font-weight="700" fill="#f5f5f7">AGENT DECISION</text>
+  <text x="350" y="181" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="18" font-weight="700" fill="#f5f5f7">LOOP</text>
+
+  <rect x="530" y="128" width="280" height="76" rx="10" fill="#0a0a0d" stroke="#33ff66" stroke-width="2"/>
+  <text x="670" y="161" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="18" font-weight="700" fill="#9fffb8">CLAUDE</text>
+  <text x="670" y="181" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="18" font-weight="700" fill="#9fffb8">SONNET 5</text>
+
+  <path d="M 510,166 L 490,166" fill="none" stroke="#6b6b76" stroke-width="1.5" marker-end="url(#arrowDim)"/>
+  <path d="M 510,166 L 530,166" fill="none" stroke="#6b6b76" stroke-width="1.5" marker-end="url(#arrowDim)"/>
+
+  <rect x="210" y="274" width="400" height="92" rx="12" fill="#000000" stroke="#33ff66" stroke-width="2.5"/>
+  <text x="410" y="307" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="19" font-weight="700" fill="#9fffb8">RISK GATE</text>
+  <text x="410" y="329" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="15" fill="#9fffb8">evaluate every order</text>
+  <text x="410" y="349" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="13" fill="#6b6b76">no bypass, ever</text>
+
+  <path d="M 350,204 L 350,256 L 410,256 L 410,274" fill="none" stroke="#a8a8b3" stroke-width="1.5" marker-end="url(#arrowDim)"/>
+
+  <rect x="210" y="436" width="400" height="90" rx="10" fill="#141419" stroke="#1c8f3d" stroke-width="1.5"/>
+  <text x="410" y="465" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="18" font-weight="700" fill="#f5f5f7">ALPACA MCP SERVER</text>
+  <text x="410" y="486" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="14" fill="#a8a8b3">stdio subprocess</text>
+  <text x="410" y="505" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="12.5" fill="#6b6b76">reads + approved orders</text>
+
+  <path d="M 410,366 L 410,436" fill="none" stroke="#33ff66" stroke-width="2.5" marker-end="url(#arrowGate)"/>
+  <text x="470" y="405" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="700" fill="#9fffb8">approved</text>
+
+  <path d="M 580,274 L 580,204" fill="none" stroke="#a8a8b3" stroke-width="1.75" stroke-dasharray="7 6" marker-end="url(#arrowRejected)"/>
+  <text x="600" y="228" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="13" fill="#a8a8b3">rejected</text>
+  <text x="600" y="247" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="13" fill="#a8a8b3">no bypass</text>
+
+  <rect x="210" y="596" width="400" height="76" rx="10" fill="#141419" stroke="#1c8f3d" stroke-width="1.5"/>
+  <text x="410" y="629" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="18" font-weight="700" fill="#f5f5f7">ALPACA TRADING API</text>
+  <text x="410" y="650" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="14" fill="#a8a8b3">paper account</text>
+
+  <path d="M 410,526 L 410,596" fill="none" stroke="#a8a8b3" stroke-width="1.5" marker-end="url(#arrowDim)"/>
+
+  <path d="M 810,176 L 850,176 L 850,481 L 610,481" fill="none" stroke="#6b6b76" stroke-width="1.5" marker-end="url(#arrowDim)"/>
+  <text x="838" y="324" text-anchor="end" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="13" fill="#6b6b76">news, movers,</text>
+  <text x="838" y="343" text-anchor="end" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="13" fill="#6b6b76">most-actives</text>
+</svg>

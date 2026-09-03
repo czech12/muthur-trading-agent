@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+  namespace: alpaca-hackathon-agent
+data:
+  agent.yaml: |
+    mode: paper  # this project only targets Alpaca's paper environment
+    trading_enabled: true  # live kill switch, re-read every loop iteration
+
+    # Leave unset (null) for dev/test. Set to the real account_number before
+    # deploying against the contest account - main.py refuses to trade if the
+    # connected account doesn't match, so a stale API key can't silently run
+    # against the wrong account.
+    expected_account_number: null
+
+    # No fixed watchlist - the agent scans the market each check-in (movers/
+    # actives/news) rather than reasoning about the same tickers every time.
+    # See agent_loop.py's system prompt.
+
+    # Optional research-only check-in before the open. The order tool is
+    # unavailable this check-in, so it's a research pass, not a trading one.
+    # Unset (null) disables it entirely.
+    premarket_research_time_et: null
+
+    # Check-ins at the 45 minute mark of each trading hour (first one 15min
+    # after the open, to skip the widest-spread/choppiest opening minutes).
+    # More than once/day so a quiet stretch doesn't leave the agent idle for
+    # a whole day.
+    decision_times_et:
+      - "09:45"
+      - "10:45"
+      - "11:45"
+      - "12:45"
+      - "13:45"
+      - "14:45"
+      - "15:45"
+    monitor_interval_seconds: 300 # deterministic (no LLM) position check cadence
+
+    risk:
+      # Sized against Alpaca's judging FAQ, which weighs total account equity
+      # alongside creativity/autonomy/robustness - headroom for that, still
+      # bounded and defined-risk-only.
+      max_risk_per_trade_pct: 0.03     # worst-case loss on one trade, as a fraction of equity
+      max_options_exposure_pct: 0.35   # total capital tied up in option positions
+      max_concurrent_positions: 5
+      max_daily_loss_pct: 0.07         # halts new entries for the rest of the day if breached
+
+    exits:
+      stop_loss_pct: 0.50    # close a position once it's down 50% of its cost basis
+      take_profit_pct: 1.00  # close a position once it's up 100% of its cost basis
+
+    anthropic:
+      model: claude-sonnet-5  # cost-conscious choice given the hourly cadence

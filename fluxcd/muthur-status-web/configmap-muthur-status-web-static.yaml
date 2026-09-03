@@ -1,0 +1,1154 @@
+# This is the canonical, DEPLOYED source for the frontend - edit it here and
+# push. Mounted as the whole /app/static directory (not a subPath)
+# specifically so kubelet's normal ConfigMap-volume sync (~1 min) picks up a
+# change with no pod restart and no image rebuild - app.py already re-reads
+# the file from disk on every request.
+apiVersion: v1
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+    <head>
+    <meta charset="utf-8">
+    <title>MU/TH/UR 8400 — Live Status</title>
+    <!-- Same $_ mark as the X profile avatar (@muthur8400) - kept in sync
+         intentionally, one glyph mark for the whole brand. -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%230a0a0d'/%3E%3Ctext x='50' y='70' text-anchor='middle' font-family='Consolas, monospace' font-size='56' font-weight='700' fill='%2333ff66'%3E%24_%3C/text%3E%3C/svg%3E">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+      :root{
+        /* Green is a scoped accent (terminal, wordmark, status line) - kept off
+           everywhere else so the terminal reads as a distinct "window into the
+           machine" instead of one more green thing among many. */
+        --bg:#0a0a0d; --bg-raised:#141419; --line:#26262e;
+        --ink:#f5f5f7; --ink-mid:#a8a8b3; --ink-dim:#6b6b76;
+        --up:#22c55e; --up-bg:rgba(34,197,94,0.12);
+        --down:#ef4444; --down-bg:rgba(239,68,68,0.12);
+        --mx-green:#33ff66; --mx-green-dim:#1c8f3d; --mx-green-bright:#9fffb8;
+        --sans:'IBM Plex Sans',Helvetica,Arial,sans-serif;
+        --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Consolas,monospace;
+      }
+      *{box-sizing:border-box;}
+      body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding-bottom:64px;}
+      a{color:var(--mx-green-bright);}
+
+      /* Shared card language - one radius, border color, padding scale - so
+         nothing looks like it wandered in from a different design. */
+      .card{background:var(--bg-raised);border:1px solid var(--line);border-radius:8px;padding:22px 24px;}
+
+      .wrap{max-width:960px;margin:0 auto;padding:0 clamp(20px,4vw,32px);}
+
+      /* --- Banner --- */
+      .banner{position:relative;background:#000;overflow:hidden;border-bottom:1px solid var(--mx-green-dim);padding:28px 0 clamp(36px,6vh,52px);}
+      .banner::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(51,255,102,0.16),transparent 68%);pointer-events:none;}
+      .banner-inner{position:relative;z-index:1;}
+      /* Hidden, not removed - #live-dot/#live-label still back the boot
+         sequence and connection-state logic in JS; the narration itself moved
+         to the terminal's own title bar. */
+      .sys-status{display:none;}
+      .dot-live{width:7px;height:7px;border-radius:50%;background:var(--mx-green-dim);box-shadow:0 0 0 3px rgba(51,255,102,0.15);animation:pulse 2s ease-in-out infinite;}
+      .dot-live.ok{background:var(--mx-green);box-shadow:0 0 0 3px rgba(51,255,102,0.22);}
+      .dot-live.err{background:var(--down);box-shadow:0 0 0 3px rgba(239,68,68,0.18);animation:none;}
+      @keyframes pulse{50%{opacity:0.4;}}
+      .wordmark{
+        /* Clamp range and letter-spacing sized for "MU/TH/UR 8400" so it reads
+           as one hero line on a phone-width screen without wrapping. */
+        font-family:var(--mono);font-weight:700;font-size:clamp(1.8rem,6vw,3.4rem);letter-spacing:0.05em;margin:16px 0 12px;
+        color:var(--mx-green-bright);text-shadow:0 0 28px rgba(51,255,102,0.55),0 0 6px rgba(51,255,102,0.9);
+        animation:power-on 1.8s steps(1) both;
+      }
+      @keyframes power-on{
+        0%{opacity:0;} 4%{opacity:1;} 8%{opacity:0.15;} 11%{opacity:1;}
+        30%{opacity:1;} 33%{opacity:0.3;} 36%{opacity:1;} 100%{opacity:1;}
+      }
+      @media (prefers-reduced-motion:reduce){ .wordmark{animation:none;} }
+      .tagline{margin:0;color:var(--ink-dim);font-family:var(--mono);font-size:0.78rem;letter-spacing:0.04em;}
+      /* Build/version tag under the wordmark, computed from the real client
+         date (setOsBuildTag()) so it always reads as "now", not hardcoded. */
+      .designation{margin:0 0 10px;color:var(--mx-green-dim);font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;}
+
+      /* Flat pixel value, not a vh-based clamp(), for guaranteed spacing above
+         and below every section boundary on every screen. No border-bottom
+         divider lines - the whitespace itself does the separating. */
+      section{padding:80px 0;}
+      /* A plain block with an explicit height, in the HTML between sections -
+         immune to any cascade/specificity/box-model issue the padding-based
+         approach above might have. */
+      .section-gap{height:60px;}
+      h2{
+        font-family:var(--mono);font-size:0.85rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
+        color:var(--ink-mid);margin:0 0 20px;
+      }
+      h2::before{content:"// ";color:var(--ink-dim);}
+
+      /* --- Terminal section: the centerpiece, first below the banner, with
+         the strongest visual weight on the page (black background, green
+         glow, border). --- */
+      /* Risk controls reuse the Portfolio stats' label/value tile pattern
+         instead of unlabeled pills - "3%" alone doesn't say what it caps. */
+      .risk-label{font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-dim);margin-bottom:10px;}
+      .risk-tiles{margin-top:0;margin-bottom:24px;}
+      .terminal{position:relative;background:#000;border:1px solid var(--mx-green-dim);border-radius:10px;overflow:hidden;box-shadow:0 0 40px -6px rgba(51,255,102,0.22),0 24px 48px -24px rgba(0,0,0,0.85);}
+      .matrix-rain{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:0.7;}
+      .terminal-bar{position:relative;z-index:1;display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:12px 16px;background:rgba(0,0,0,0.55);border-bottom:1px solid var(--mx-green-dim);}
+      .tbar-right{margin-left:auto;display:flex;align-items:baseline;gap:10px;font-family:var(--mono);font-size:0.86rem;font-weight:700;color:var(--mx-green-bright);text-shadow:0 0 8px rgba(51,255,102,0.6);white-space:nowrap;}
+      .tbar-ship{letter-spacing:0.06em;}
+      .terminal-bar .tdot{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--mx-green-dim);transition:background 0.5s,box-shadow 0.5s;}
+      /* Pulsing, staggered like a "..." loading indicator while booting;
+         solid and glowing once the boot sequence finishes ("Live"). */
+      .tb-connecting .tdot{animation:tdot-pulse 1.2s ease-in-out infinite;}
+      .tb-connecting .tdot:nth-child(2){animation-delay:0.15s;}
+      .tb-connecting .tdot:nth-child(3){animation-delay:0.3s;}
+      @keyframes tdot-pulse{0%,100%{opacity:0.3;} 50%{opacity:1;}}
+      .tb-live .tdot{background:var(--mx-green);box-shadow:0 0 7px rgba(51,255,102,0.75);animation:none;opacity:1;}
+      @media (prefers-reduced-motion:reduce){ .tb-connecting .tdot{animation:none;opacity:0.7;} }
+      .terminal-bar .ttitle{margin-left:8px;font-family:var(--mono);font-size:0.92rem;font-weight:700;color:var(--mx-green-bright);text-shadow:0 0 8px rgba(51,255,102,0.6);}
+      /* No scrollbar - enforceLogCap() trims the oldest entry by actual
+         rendered height against LOG_CAP_TARGET_HEIGHT in the script below, so
+         content past that target clears out instead of scrolling. No CSS
+         max-height: a single entry taller than the target still stays whole
+         (see enforceLogCap) and the box grows to fit it. */
+      .terminal-body{position:relative;z-index:1;padding:20px 22px;min-height:280px;font-family:var(--mono);font-size:0.88rem;line-height:1.7;background:rgba(0,0,0,0.55);text-shadow:0 0 6px rgba(51,255,102,0.35);}
+      .log-line{margin-bottom:18px;transition:opacity 0.35s ease;}
+      .log-line.fifo-out{opacity:0;}
+      .log-line:last-child{margin-bottom:0;}
+      .log-line .cmd{color:var(--mx-green);white-space:pre-wrap;}
+      .log-line .prompt{color:var(--mx-green-bright);}
+      .log-line .ts{color:var(--mx-green-dim);}
+      .log-line .headline{color:var(--mx-green-bright);font-weight:600;text-transform:uppercase;}
+      .log-line .body b{color:var(--mx-green-bright);font-weight:600;}
+      .log-line .body{color:var(--mx-green);white-space:pre-wrap;margin:6px 0 0 20px;opacity:0.85;}
+      .log-line.err{color:#ff4d4d;}
+      .log-line.empty{color:var(--mx-green-dim);}
+      .cursor-blink{display:inline-block;width:7px;height:13px;background:var(--mx-green);vertical-align:-2px;animation:blink 1s step-end infinite;box-shadow:0 0 6px rgba(51,255,102,0.6);}
+      @keyframes blink{50%{opacity:0;}}
+      @media (prefers-reduced-motion:reduce){ .cursor-blink{animation:none;} }
+
+      /* Portfolio card - headline number + delta above its own chart, one
+         self-contained unit, mirroring how Alpaca's dashboard presents this. */
+      .portfolio-head{margin-bottom:18px;}
+      .portfolio-head .label{font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-dim);margin-bottom:8px;}
+      .portfolio-head .value-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:10px;}
+      .portfolio-value{font-family:var(--mono);font-size:clamp(1.8rem,4vw,2.4rem);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;}
+
+      .tiles{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+      .tile{background:var(--bg-raised);padding:18px 20px;}
+      .tile .label{font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-dim);margin-bottom:8px;}
+      .tile .value{font-family:var(--mono);font-size:1.3rem;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;}
+      .tile .value.up{color:var(--up);} .tile .value.down{color:var(--down);}
+      .pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:0.68rem;font-family:var(--mono);font-weight:600;vertical-align:middle;margin-left:8px;}
+      .pill.up{background:var(--up-bg);color:var(--up);} .pill.down{background:var(--down-bg);color:var(--down);} .pill.flat{background:rgba(84,112,99,0.18);color:var(--ink-dim);}
+
+      .position-card{margin-bottom:16px;}
+      .position-card:last-child{margin-bottom:0;}
+      .pos-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+      .pos-title{font-family:var(--mono);font-size:1rem;font-weight:600;color:var(--ink);}
+      .pos-sub{font-family:var(--mono);font-size:0.76rem;color:var(--ink-dim);margin-top:3px;}
+      .legs{display:grid;gap:4px;font-family:var(--mono);font-size:0.78rem;}
+      .legs .leg{display:flex;justify-content:space-between;color:var(--ink-mid);}
+      .legs .leg span:last-child{color:var(--ink-dim);}
+
+      .chart-wrap{position:relative;height:220px;}
+
+      /* Nav strip for the day-by-day archive - LIVE on its own line, then a
+         labeled group of one link per closed trading day below it. */
+      .archive-nav{padding:14px 0 0;font-family:var(--mono);font-size:0.76rem;text-align:center;}
+      .archive-nav a{color:var(--ink-mid);text-decoration:none;padding-bottom:2px;border-bottom:1px solid transparent;}
+      .archive-nav a:hover{color:var(--mx-green-bright);}
+      .archive-nav a.active{color:var(--mx-green-bright);border-bottom-color:var(--mx-green-dim);}
+      .archive-nav-live{margin-bottom:10px;}
+      .archive-nav-days{display:flex;flex-wrap:wrap;justify-content:center;align-items:baseline;gap:6px 16px;}
+      .archive-nav-days-label{color:var(--ink-dim);letter-spacing:0.08em;text-transform:uppercase;margin-right:4px;}
+      .archive-nav-sep{color:var(--ink-dim);}
+      .archive-nav-pending{color:var(--ink-dim);}
+      /* Pulled in tighter than the standard 60px section-gap - the nav
+         governs the Terminal section below it, so the two should read as
+         connected rather than sitting in their own separate space. */
+      #gap-before-terminal{height:24px;}
+
+      /* Hand-written day summary above the terminal - plain prose, not
+         terminal-styled, since it's commentary rather than a log entry. */
+      #archive-summary p{margin:0 0 12px;line-height:1.6;}
+      #archive-summary p:last-child{margin-bottom:0;}
+      #archive-summary ul{margin:0;padding-left:1.2em;line-height:1.6;}
+      #archive-summary ul li{margin-bottom:8px;}
+      #archive-summary ul li:last-child{margin-bottom:0;}
+
+      /* One terminal window per check-in on the archive page - each was a
+         separate job run, stacked with room between them. */
+      .archive-run{margin-bottom:24px;}
+      .archive-run:last-child{margin-bottom:0;}
+
+      footer{padding:24px 0 0;}
+      .empty{color:var(--ink-dim);font-family:var(--mono);font-size:0.85rem;}
+      .err{color:var(--down);font-family:var(--mono);font-size:0.8rem;}
+      @media (prefers-reduced-motion:reduce){ .dot-live{animation:none;} }
+    </style>
+    </head>
+    <body>
+
+    <header class="banner">
+      <div class="wrap banner-inner">
+        <div class="sys-status"><span class="dot-live" id="live-dot"></span><span id="live-label">Connecting…</span></div>
+        <h1 class="wordmark">MU/TH/UR 8400</h1>
+        <div class="designation" id="os-build"></div>
+        <p class="tagline">AUTONOMOUS OPTIONS TRADING — ALPACA AI TRADING AGENTS HACKATHON</p>
+      </div>
+    </header>
+
+    <nav class="archive-nav wrap" id="archive-nav" aria-label="Daily archives"></nav>
+
+    <div class="section-gap" aria-hidden="true" id="gap-before-terminal"></div>
+
+    <section class="wrap terminal-section" id="live-terminal-section">
+      <h2>Live Terminal</h2>
+      <div class="risk-label">Risk Controls</div>
+      <div class="tiles risk-tiles">
+        <div class="tile"><div class="label">Per Trade</div><div class="value">3%</div></div>
+        <div class="tile"><div class="label">Max Exposure</div><div class="value">35%</div></div>
+        <div class="tile"><div class="label">Daily Loss Halt</div><div class="value">7%</div></div>
+        <div class="tile"><div class="label">Max Positions</div><div class="value">5</div></div>
+      </div>
+      <div class="terminal">
+        <canvas class="matrix-rain" id="matrix-rain"></canvas>
+        <div class="terminal-bar tb-connecting" id="terminal-bar">
+          <span class="tdot r"></span><span class="tdot y"></span><span class="tdot g"></span>
+          <span class="ttitle" id="terminal-title">REQUESTING UMBILICAL…</span>
+          <span class="tbar-right"><span class="tbar-ship">NOSTROMO</span><span id="tbar-clock"></span></span>
+        </div>
+        <div class="terminal-body" id="log"><p class="empty">Loading…</p></div>
+      </div>
+    </section>
+
+    <div class="section-gap" aria-hidden="true" id="gap-before-portfolio"></div>
+
+    <section class="wrap" id="portfolio-section">
+      <h2>Portfolio</h2>
+      <div class="card">
+        <div class="portfolio-head">
+          <div class="label">Equity</div>
+          <div class="value-row">
+            <div class="portfolio-value" id="equity-value">$0.00</div>
+            <span id="equity-delta"></span>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="equity-chart"></canvas></div>
+      </div>
+      <div class="tiles" id="tiles"></div>
+    </section>
+
+    <div class="section-gap" aria-hidden="true" id="gap-before-positions"></div>
+
+    <section class="wrap" id="positions-section"><h2>Open Positions</h2><div id="positions"><p class="empty">Loading…</p></div></section>
+
+    <section class="wrap" id="archive-view" hidden>
+      <h2>Summary</h2>
+      <div class="card" id="archive-summary"><p class="empty">Loading…</p></div>
+
+      <div class="section-gap" aria-hidden="true"></div>
+
+      <h2 id="archive-title">Day Archive</h2>
+      <div id="archive-decisions"><p class="empty">Loading…</p></div>
+    </section>
+
+    <script>
+    (function(){
+      // Computed from the real client date so the build tag always reads as
+      // "now" rather than frozen at release. Runs once immediately.
+      (function setOsBuildTag(){
+        var el = document.getElementById("os-build");
+        if(!el) return;
+        var d = new Date();
+        var pad = function(n){ return n < 10 ? "0" + n : "" + n; };
+        el.textContent = "OS BUILD " + d.getFullYear() + "." + pad(d.getMonth() + 1) + "." + pad(d.getDate());
+      })();
+
+      // First thing the terminal ever prints, once, on first load - original
+      // text in a terse computer-readout register, echoing the "special
+      // order" scene in Alien. Counts toward the FIFO cap like any other
+      // entry (enforceLogCap): it clears out same as a real check-in would
+      // once enough of them have streamed in above it.
+      var MISSION_BRIEFING = {
+        extraClass: "mission-briefing",
+        specialLabel: "SPECIAL ORDER 2179",
+        headline: "MISSION PRIORITY: FUND VESSEL OPERATIONS",
+        body: "PRIORITY ONE.\n"+
+          "GENERATE CAPITAL VIA AUTONOMOUS OPTIONS TRADING.\n"+
+          "ALL OTHER CONSIDERATIONS SECONDARY.\n"+
+          "DEFINED RISK ONLY.",
+      };
+
+      // Hand-written recap at the top of each day's archive page - not
+      // generated from the log, so it can actually assess the day rather
+      // than restate it. Filled in after a trading day closes; a date with
+      // no entry here just shows a placeholder.
+      var DAY_SUMMARIES = {
+        "2026-08-31": "- Opened flat at $100,000, no legacy positions.\n- Two entries, both defined-risk call debit spreads in energy: CVX 202.5/210 (Sept 18 exp) on the reported US-Venezuela oil agreement, and SLB 59/62 (Sept 18 exp) on its Kelvion acquisition.\n- Passed on SAIC, ASND, RBLX, PCG/EIX, AMZN, TSLA, and PANW - real catalysts, but markets too wide or no clean thesis to trade.\n- Both positions held through the close, no invalidation levels hit.\n- Finished at $99,134.50, down 0.87% - unrealized mark-to-market, not a realized loss.",
+      };
+
+      // Hides specific log entries by timestamp - a short hand-maintained
+      // list, not a general filtering mechanism. The Loki query itself
+      // filters only by cluster/namespace, not account, so an entry logged
+      // against a non-contest account isn't excluded at the source.
+      var EXCLUDED_DECISION_TS = [1788184238];
+      function excludeStaleEntries(entries){
+        return (entries || []).filter(function(e){ return EXCLUDED_DECISION_TS.indexOf(e.ts_unix) === -1; });
+      }
+
+      function fmtUsd(n, opts){
+        opts = opts || {};
+        var sign = n < 0 ? "-" : (opts.forceSign ? "+" : "");
+        var abs = Math.abs(n);
+        return sign + "$" + abs.toLocaleString(undefined, {minimumFractionDigits: opts.cents ? 2 : 0, maximumFractionDigits: opts.cents ? 2 : 0});
+      }
+      // Pinned to America/New_York instead of the viewer's own browser
+      // timezone - every event here (market hours, the agent's decision
+      // cadence) is inherently Eastern, so showing it relabeled to whatever
+      // timezone the viewer happens to be in would just be a different kind
+      // of wrong. The EDT/EST label itself is still computed live per date.
+      // 24-hour, no AM/PM, matching the agent's own generated timestamps.
+      function fmtTime(unix){
+        var d = new Date(unix * 1000);
+        return d.toLocaleString("en-US", {timeZone: "America/New_York", hour12: false, year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', timeZoneName:'short'});
+      }
+
+      function render(data){
+        var dayPl = data.account.equity - data.account.lastEquity;
+        var pillClass = dayPl > 0.5 ? "up" : (dayPl < -0.5 ? "down" : "flat");
+
+        document.getElementById("equity-value").textContent = fmtUsd(data.account.equity, {cents:true});
+        document.getElementById("equity-delta").innerHTML =
+          '<span class="pill '+pillClass+'">'+(dayPl>=0?"▲":"▼")+" "+fmtUsd(Math.abs(dayPl),{cents:true})+" today</span>";
+
+        var tiles = [
+          {label:"Cash", value: fmtUsd(data.account.cash,{cents:true})},
+          {label:"Buying Power", value: fmtUsd(data.account.buyingPower)},
+          {label:"Options BP", value: fmtUsd(data.account.optionsBuyingPower,{cents:true})}
+        ];
+        var tilesEl = document.getElementById("tiles");
+        tilesEl.innerHTML = "";
+        tiles.forEach(function(t){
+          var d = document.createElement("div");
+          d.className = "tile";
+          d.innerHTML = '<div class="label">'+t.label+'</div><div class="value '+(t.cls||"")+'">'+t.value+(t.extra||"")+'</div>';
+          tilesEl.appendChild(d);
+        });
+
+        var positions = data.positions;
+        var posEl = document.getElementById("positions");
+        if(!positions.length){
+          posEl.innerHTML = '<p class="empty">No open positions.</p>';
+        } else {
+          posEl.innerHTML = "";
+          positions.forEach(function(p){
+            var plClass2 = p.unrealizedPl > 0 ? "up" : (p.unrealizedPl < 0 ? "down" : "");
+            var legsHtml = p.legs.map(function(l){
+              return '<div class="leg"><span>'+l.side+' '+l.symbol+' x'+Math.abs(l.qty)+'</span><span>avg $'+parseFloat(l.avgEntry).toFixed(2)+' → mark $'+parseFloat(l.currentPrice).toFixed(2)+'</span></div>';
+            }).join("");
+            var card = document.createElement("div");
+            card.className = "card position-card";
+            card.innerHTML =
+              '<div class="pos-head"><div><div class="pos-title">'+p.root+' · '+p.expiry+'</div><div class="pos-sub">'+p.legs.length+' leg(s) · net cost basis '+fmtUsd(p.netCostBasis)+'</div></div>'+
+              '<div class="value '+plClass2+'" style="font-family:var(--mono);font-size:1.1rem;font-weight:600;">'+(p.unrealizedPl>=0?"+":"")+fmtUsd(p.unrealizedPl)+'</div></div>'+
+              '<div class="legs">'+legsHtml+'</div>';
+            posEl.appendChild(card);
+          });
+        }
+
+        // A chart failure must never take the decision-log terminal down with
+        // it - this call sits before updateLog() so an exception here can't
+        // abort the rest of render().
+        try {
+          updateEquityChart(data.equityHistory || [], data.account.equity);
+        } catch(e) {
+          console.error("equity chart failed to render:", e);
+        }
+
+        updateLogGated(excludeStaleEntries(data.log), data.logError);
+      }
+
+      // --- Decision-log terminal, height-capped and FIFO'd (see
+      // enforceLogCap below). Every job, on load and as it streams in, types
+      // out character by
+      // character through one shared queue, oldest first. Diffing against
+      // what's already been seen means a push repeating shown entries never
+      // re-types or rebuilds the DOM.
+      //
+      // The cursor is a permanent fixture, always the terminal's first child.
+      // New entries insert as its next sibling, appearing beneath the blinking
+      // prompt and pushing everything else down. ---
+      var renderedLogIds = {};
+      var logInitialized = false;
+      var cursorEl = null;
+
+      function ensureCursor(){
+        if(!cursorEl){
+          cursorEl = document.createElement("span");
+          cursorEl.className = "cursor-blink";
+        }
+        return cursorEl;
+      }
+
+      // Wipes the terminal and reseats the cursor as its only child - used
+      // whenever the whole body needs rebuilding (first load, error, empty).
+      function resetLogTerminal(logEl){
+        logEl.innerHTML = "";
+        logEl.appendChild(ensureCursor());
+      }
+
+      function buildLogLine(){
+        var wrapper = document.createElement("div");
+        wrapper.className = "log-line";
+        var head = document.createElement("div");
+        var prompt = document.createElement("span");
+        prompt.className = "prompt";
+        prompt.textContent = "$ ";
+        var ts = document.createElement("span");
+        ts.className = "ts";
+        var headline = document.createElement("span");
+        headline.className = "headline";
+        head.appendChild(prompt);
+        head.appendChild(ts);
+        head.appendChild(headline);
+        var body = document.createElement("div");
+        body.className = "body";
+        wrapper.appendChild(head);
+        wrapper.appendChild(body);
+        return {wrapper: wrapper, tsEl: ts, headlineEl: headline, bodyEl: body};
+      }
+
+      var TYPE_HEADLINE_MS = 45;
+      var TYPE_BODY_MS = 20;
+      // How many entries type out on a fresh page load - just the latest one.
+      // New jobs that stream in live still type in on top and FIFO the
+      // oldest visible entry out via enforceLogCap() below (by rendered
+      // height, not entry count).
+      var MAX_DISPLAYED_JOBS = 1;
+
+      // The mission briefing (MISSION_BRIEFING above) counts toward this cap
+      // like any other entry - it clears out same as a real check-in would.
+      // Called only once the type queue drains (see processTypeQueue below),
+      // not on every insert, and trims oldest-first, one entry at a time,
+      // until the total fits within LOG_CAP_TARGET_HEIGHT - there's no CSS
+      // max-height, so the box grows to fit whatever's left instead of
+      // scrolling. The last remaining entry is never removed for being too
+      // tall on its own - a long check-in always stays fully visible.
+      var LOG_CAP_TARGET_HEIGHT = 640;
+      // Fades an entry out (see the .fifo-out CSS transition) before removing
+      // it, so a FIFO'd-out entry reads as an intentional handoff rather than
+      // an instant disappearance.
+      function fifoOut(el){
+        el.classList.add("fifo-out");
+        setTimeout(function(){
+          if(el.parentNode) el.parentNode.removeChild(el);
+        }, 350);
+      }
+      function enforceLogCap(logEl){
+        var lines = logEl.querySelectorAll(".log-line");
+        var i = lines.length - 1;
+        var remaining = lines.length;
+        // Track the projected total height ourselves rather than re-reading
+        // logEl.scrollHeight each loop - a fading-out entry hasn't left
+        // layout yet (removeChild is still pending in fifoOut's timeout), so
+        // a live re-measure would keep counting it and over-trim.
+        var projected = logEl.scrollHeight;
+        while(remaining > 1 && projected > LOG_CAP_TARGET_HEIGHT && i >= 0){
+          projected -= lines[i].offsetHeight;
+          fifoOut(lines[i]);
+          i--;
+          remaining--;
+        }
+      }
+
+      // One shared queue serializes every typing operation page-wide (on-load
+      // entries, live SSE pushes, the ?demo=1 entry) - otherwise an entry queued
+      // mid-type would animate concurrently in a different DOM element.
+      var typeQueue = [];
+      var typingInProgress = false;
+      var BETWEEN_ENTRIES_PAUSE_MS = 700; // between one finishing and the next starting - not before the first
+
+      function processTypeQueue(logEl, pauseFirst){
+        if(!typeQueue.length){
+          typingInProgress = false;
+          enforceLogCap(logEl);
+          return;
+        }
+        typingInProgress = true;
+        var entry = typeQueue.shift();
+        var start = function(){
+          typeLogLine(entry, logEl, function(){ processTypeQueue(logEl, true); });
+        };
+        if(pauseFirst){
+          setTimeout(start, BETWEEN_ENTRIES_PAUSE_MS);
+        } else {
+          start();
+        }
+      }
+
+      function enqueueTypeLogLine(entry, logEl){
+        typeQueue.push(entry);
+        if(!typingInProgress) processTypeQueue(logEl, false);
+      }
+
+      // Shared by the typed live terminal and the static archive page: takes
+      // a summary's headline plus its raw body and returns the body ready to
+      // display - blank lines collapsed (markdown-style paragraph breaks are
+      // wasted space in a fixed-height terminal), the duplicate first line
+      // dropped (the headline is just the body's own first line, server-
+      // side), and a blank line re-added before each major section header
+      // (e.g. "**Decision:** ..."), whether or not text continues on that
+      // same line, including one after the last section.
+      // Hand-verified corrections to specific timestamps quoted inside a
+      // check-in's own body text - e.g. a bar/news timestamp echoed straight
+      // from a tool result (which comes back in UTC) without converting,
+      // mislabeled "ET" but off by the UTC/Eastern offset. Only patches
+      // individually-verified instances (checked against real market data),
+      // not a blanket shift - the check-in's own header timestamp is
+      // computed correctly and is never touched here. Keyed by ts_unix +
+      // exact substring.
+      var TEXT_CORRECTIONS = [
+        {ts_unix: 1788194955, find: "13:30 ET", replace: "09:35 EDT"},
+        {ts_unix: 1788194955, find: "13:31 ET", replace: "09:31 EDT"},
+      ];
+      function applyTextCorrections(ts_unix, text){
+        return TEXT_CORRECTIONS.reduce(function(acc, c){
+          return c.ts_unix === ts_unix ? acc.split(c.find).join(c.replace) : acc;
+        }, text);
+      }
+
+      function preprocessLogBody(headlineText, rawBody, ts_unix){
+        var bodyText = applyTextCorrections(ts_unix, rawBody).replace(/\n[ \t]*\n+/g, "\n");
+        var bodyLines = bodyText.split("\n");
+        // Starts-with, not exact equality - the server truncates headline to
+        // 140 chars, but the body's own first line isn't, so a long first
+        // line makes headlineText only a prefix of it, not an exact match.
+        if(bodyLines.length && bodyLines[0].replace(/^[#*\s]+/, "").trim().indexOf(headlineText.trim()) === 0){
+          bodyLines.shift();
+          bodyText = bodyLines.join("\n").replace(/^\n+/, "");
+        }
+        return bodyText.split("\n").reduce(function(acc, line, idx){
+          var m = /^(\*\*[^*]+:\*\*)(.*)$/.exec(line.trim());
+          if(m){
+            if(idx > 0) acc.push("");
+            acc.push(m[1]);
+            if(m[2].trim()) acc.push(m[2].trim());
+          } else {
+            acc.push(line);
+          }
+          return acc;
+        }, []).join("\n") + "\n";
+      }
+
+      function typeLogLine(entry, logEl, onDone){
+        var parts = buildLogLine();
+        if(entry.extraClass) parts.wrapper.classList.add(entry.extraClass);
+        logEl.insertBefore(parts.wrapper, cursorEl.nextSibling); // right below the cursor, which stays put
+        // A real entry gets a real timestamp; the mission briefing supplies its
+        // own label (a designation, not a date) instead.
+        parts.tsEl.textContent = entry.specialLabel ?
+          ("[" + entry.specialLabel + "] ") : ("[" + fmtTime(entry.ts_unix) + "] ");
+        var headlineText = entry.headline;
+        var bodyText = preprocessLogBody(headlineText, entry.body, entry.ts_unix);
+        var hIdx = 0, bIdx = 0;
+        function typeHeadline(){
+          if(hIdx <= headlineText.length){
+            parts.headlineEl.textContent = headlineText.slice(0, hIdx++);
+            setTimeout(typeHeadline, TYPE_HEADLINE_MS);
+          } else {
+            setTimeout(typeBody, 400); // a beat, like a command finishing before its output starts
+          }
+        }
+        function typeBody(){
+          if(bIdx <= bodyText.length){
+            parts.bodyEl.textContent = bodyText.slice(0, bIdx++);
+            setTimeout(typeBody, TYPE_BODY_MS);
+          } else {
+            // Typing itself uses plain textContent - the raw "**" markers
+            // stay visible character-by-character like any other character.
+            // Only once typing is fully done does markdown bold render for
+            // real, via a single innerHTML swap on the complete text.
+            var escaped = bodyText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            parts.bodyEl.innerHTML = escaped.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+            if(onDone) onDone();
+          }
+        }
+        typeHeadline();
+      }
+
+      // Renders one decision check-in as its own terminal window (title bar
+      // included) - each check-in was a genuinely separate job run, and a
+      // single shared terminal made them read as one continuous session.
+      // The bar's own title carries the run's timestamp, so the body just
+      // needs the headline/body, not a repeated inline timestamp.
+      function buildArchiveRun(entry){
+        var wrap = document.createElement("div");
+        wrap.className = "terminal archive-run";
+
+        var bar = document.createElement("div");
+        bar.className = "terminal-bar tb-live";
+        bar.innerHTML =
+          '<span class="tdot r"></span><span class="tdot y"></span><span class="tdot g"></span>' +
+          '<span class="ttitle">MU/TH/UR 8400 — ' + fmtTime(entry.ts_unix) + '</span>' +
+          '<span class="tbar-right"><span class="tbar-ship">NOSTROMO</span></span>';
+
+        var body = document.createElement("div");
+        body.className = "terminal-body";
+        var line = document.createElement("div");
+        line.className = "log-line";
+        var head = document.createElement("div");
+        var prompt = document.createElement("span");
+        prompt.className = "prompt";
+        prompt.textContent = "$ ";
+        var headline = document.createElement("span");
+        headline.className = "headline";
+        headline.textContent = entry.headline;
+        head.appendChild(prompt);
+        head.appendChild(headline);
+        var bodyEl = document.createElement("div");
+        bodyEl.className = "body";
+        var bodyText = preprocessLogBody(entry.headline, entry.body, entry.ts_unix);
+        var escaped = bodyText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        bodyEl.innerHTML = escaped.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+        line.appendChild(head);
+        line.appendChild(bodyEl);
+        body.appendChild(line);
+
+        wrap.appendChild(bar);
+        wrap.appendChild(body);
+        return wrap;
+      }
+
+      // --- Daily archive nav + page ---------------------------------------
+      // ?day=YYYY-MM-DD swaps the whole page from the live dashboard to a
+      // read-only summary of one closed trading day: every decision check-in
+      // logged that day, each as its own terminal window, in order. The nav
+      // strip (which days are available) loads on every page view, including
+      // the live one, so it's also the way back out.
+      var ARCHIVE_DATE = (function(){
+        var m = /(?:^|[?&])day=(\d{4}-\d{2}-\d{2})(?:&|$)/.exec(location.search);
+        return m ? m[1] : null;
+      })();
+
+      function renderArchiveNavLinks(days){
+        var nav = document.getElementById("archive-nav");
+        if(!nav) return;
+        // Only shown on an archive page, as the way back - on the live
+        // page itself it would just be a link to where you already are.
+        var html = ARCHIVE_DATE ? '<div class="archive-nav-live"><a href="/">HOME</a></div>' : "";
+        if(days.length){
+          html += '<div class="archive-nav-days"><span class="archive-nav-days-label">// Daily Summaries</span>';
+          days.forEach(function(d, i){
+            var active = d.date === ARCHIVE_DATE;
+            if(i > 0) html += '<span class="archive-nav-sep">|</span>';
+            // A day with nothing logged yet (a future weekday this week, or
+            // today before its first check-in) previews as plain text - no
+            // link, since there's nothing behind it yet.
+            if(d.available){
+              html += '<a href="?day=' + d.date + '"' +
+                (active ? ' class="active"' : "") + '>' + d.label + '</a>';
+            } else {
+              html += '<span class="archive-nav-pending">' + d.label + '</span>';
+            }
+          });
+          html += '</div>';
+        }
+        nav.innerHTML = html;
+      }
+
+      function loadArchiveNav(){
+        fetch("/api/days", {cache:"no-store"})
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            var days = data.days || [];
+            // Preview today as a real link as soon as it has any logged
+            // decisions, rather than waiting for the 4pm ET close that
+            // flips `available` server-side. Only today can ever be "in
+            // progress but already has logs" - every other day is either
+            // already closed or hasn't started - so checking today's date
+            // alone generalizes to whichever day is actually running as
+            // the week goes on.
+            var todayET = new Date().toLocaleDateString("en-CA", {timeZone: "America/New_York"}); // YYYY-MM-DD
+            var todayEntry = days.filter(function(d){ return d.date === todayET; })[0];
+            if(!todayEntry || todayEntry.available){
+              return days;
+            }
+            return fetch("/api/day?date=" + encodeURIComponent(todayET), {cache:"no-store"})
+              .then(function(r){ return r.json(); })
+              .then(function(dayData){
+                if(excludeStaleEntries(dayData.decisions).length){
+                  todayEntry.available = true;
+                }
+                return days;
+              })
+              .catch(function(){ return days; });
+          })
+          .then(renderArchiveNavLinks)
+          .catch(function(){ /* nav is a nice-to-have - fail silent */ });
+      }
+
+      // True only for today, before the 4pm ET close - lets the empty
+      // placeholder say something more useful than "not written yet" while
+      // a day is still actually in progress (a summary isn't written until
+      // a day is done, so an in-progress day always lacks one).
+      function isTradingDayInProgress(dateStr){
+        var now = new Date();
+        var todayET = now.toLocaleDateString("en-CA", {timeZone: "America/New_York"}); // YYYY-MM-DD
+        if(dateStr !== todayET) return false;
+        var hourET = parseInt(now.toLocaleString("en-US", {timeZone: "America/New_York", hour: "2-digit", hour12: false}), 10) % 24;
+        return hourET < 16;
+      }
+
+      // Renders the hand-written recap at the top of the archive page (see
+      // DAY_SUMMARIES above) - no entry yet just shows a placeholder, same
+      // empty-state pattern as the rest of the page.
+      function renderDaySummary(dateStr){
+        var el = document.getElementById("archive-summary");
+        var text = DAY_SUMMARIES[dateStr];
+        if(!text){
+          el.innerHTML = isTradingDayInProgress(dateStr)
+            ? '<p class="empty">Trading day still in progress — summary will be added after market close.</p>'
+            : '<p class="empty">No summary written yet for this day.</p>';
+          return;
+        }
+        var escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        el.innerHTML = escaped.split(/\n{2,}/).map(function(block){
+          var lines = block.split("\n");
+          // A block where every line starts with "- " renders as a real
+          // bullet list - the summary is meant to be scanned, not read as
+          // prose; the detail lives in the log below.
+          if(lines.length && lines.every(function(l){ return /^-\s/.test(l); })){
+            return "<ul>" + lines.map(function(l){ return "<li>" + l.replace(/^-\s/, "") + "</li>"; }).join("") + "</ul>";
+          }
+          return "<p>" + block.replace(/\n/g, "<br>") + "</p>";
+        }).join("");
+      }
+
+      function renderArchivePage(dateStr){
+        // portfolio-section/positions-section each have a standalone
+        // .section-gap spacer sibling that needs hiding along with them.
+        // gap-before-terminal is left alone on purpose - it's the one gap
+        // between the nav and whatever's first (Terminal live, Summary
+        // here), so removing it collapsed that spacing to almost nothing.
+        ["live-terminal-section", "portfolio-section", "gap-before-portfolio",
+         "positions-section", "gap-before-positions"].forEach(function(id){
+          var el = document.getElementById(id);
+          if(el) el.hidden = true;
+        });
+        document.getElementById("archive-view").hidden = false;
+        renderDaySummary(dateStr);
+
+        fetch("/api/day?date=" + encodeURIComponent(dateStr), {cache:"no-store"})
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if(data.error) throw new Error(data.error);
+            document.getElementById("archive-title").textContent = "Day Archive — " + (data.label || data.date) + " (newest first)";
+            var decEl = document.getElementById("archive-decisions");
+            decEl.innerHTML = "";
+            var decisions = excludeStaleEntries(data.decisions);
+            if(!decisions.length){
+              decEl.innerHTML = '<p class="empty">No decision check-ins logged this day.</p>';
+            } else {
+              // The API returns these oldest-first; reversed here so the
+              // most recent check-in is on top, not buried at the bottom.
+              decisions.slice().reverse().forEach(function(entry){
+                decEl.appendChild(buildArchiveRun(entry));
+              });
+            }
+          })
+          .catch(function(err){
+            document.getElementById("archive-title").textContent = "Day Archive — " + dateStr;
+            document.getElementById("archive-decisions").innerHTML = '<p class="log-line err">failed to load: ' + err.message + '</p>';
+          });
+      }
+
+      // A brief, non-typed system line shown once before the mission briefing -
+      // reads as retrieving something rather than the terminal being instantly
+      // ready. Not part of the typing queue: appears, holds, then clears.
+      function printBootMessage(logEl, text, holdMs, cb){
+        var el = document.createElement("div");
+        el.className = "log-line empty";
+        el.textContent = "$ " + text;
+        logEl.insertBefore(el, cursorEl.nextSibling);
+        setTimeout(function(){
+          if(el.parentNode) el.parentNode.removeChild(el);
+          cb();
+        }, holdMs);
+      }
+
+      function updateLog(logData, logErr){
+        var logEl = document.getElementById("log");
+
+        if(logErr){
+          resetLogTerminal(logEl);
+          var errEl = document.createElement("div");
+          errEl.className = "log-line err";
+          errEl.textContent = "connection error: " + logErr;
+          logEl.appendChild(errEl);
+          logInitialized = false; // force a clean instant re-render once real data returns
+          renderedLogIds = {};
+          return;
+        }
+        if(!logData.length){
+          if(!logInitialized){
+            resetLogTerminal(logEl);
+            logInitialized = true;
+            printBootMessage(logEl, "ACCESSING SHIP'S LOG…", 2400, function(){
+              enqueueTypeLogLine(MISSION_BRIEFING, logEl); // still prints even with no real check-ins yet
+            });
+          }
+          return;
+        }
+
+        if(!logInitialized){
+          resetLogTerminal(logEl);
+          // Mark everything the server sent as seen, not just what's displayed -
+          // otherwise a later push repeating an older entry beyond the display
+          // cap would look "new" and wrongly type itself in.
+          logData.forEach(function(e){ renderedLogIds[e.ts_unix] = true; });
+
+          // Every job in the initial display types out on load through the
+          // same shared queue a live SSE push uses, oldest enqueued first so
+          // the newest ends up typed last (topmost, right after the cursor).
+          var toShow = logData.slice(0, MAX_DISPLAYED_JOBS).slice().reverse(); // oldest-of-the-shown first
+          logInitialized = true;
+          printBootMessage(logEl, "ACCESSING SHIP'S LOG…", 2400, function(){
+            enqueueTypeLogLine(MISSION_BRIEFING, logEl); // always first, every page load
+            toShow.forEach(function(entry){ enqueueTypeLogLine(entry, logEl); });
+          });
+          return;
+        }
+
+        var newEntries = logData.filter(function(e){ return !renderedLogIds[e.ts_unix]; });
+        if(!newEntries.length) return;
+        newEntries.sort(function(a, b){ return a.ts_unix - b.ts_unix; }); // oldest-of-the-new-batch first
+        newEntries.forEach(function(entry){
+          renderedLogIds[entry.ts_unix] = true;
+          enqueueTypeLogLine(entry, logEl);
+        });
+      }
+
+      var equityChart = null;
+      var equityTooltipLabels = []; // shared, not re-declared per call - the
+                                     // tooltip callback closure is created once
+                                     // and must keep reading the latest values.
+      function updateEquityChart(points, currentEquity){
+        var canvas = document.getElementById("equity-chart");
+        if(points.length < 2){
+          // Nothing real to chart yet - synthesize a flat line at the current
+          // equity rather than hiding the chart behind a placeholder.
+          var now = Date.now() / 1000;
+          points = [{t: now - 3600, equity: currentEquity}, {t: now, equity: currentEquity}];
+        }
+
+        // Plain category labels, not Chart.js's "time" scale - that needs a date
+        // adapter library we'd otherwise have to load just for this one axis.
+        // Pinned to America/New_York + 24-hour, same as fmtTime() - a
+        // separate function, so it needed its own fix.
+        var labels = points.map(function(p){
+          var d = new Date(p.t * 1000);
+          return d.toLocaleString("en-US", {timeZone: "America/New_York", hour12: false, weekday:"short", hour:"2-digit", minute:"2-digit"});
+        });
+        equityTooltipLabels = points.map(function(p){ return fmtTime(p.t); });
+        var values = points.map(function(p){ return p.equity; });
+        var first = values[0], last = values[values.length - 1];
+        var trendingUp = last >= first;
+        var lineColor = trendingUp ? "#22c55e" : "#ef4444";
+        var fillColor = trendingUp ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)";
+
+        // A flat line has zero data range, and Chart.js's linear-axis
+        // auto-scaling degenerates when min===max - nothing draws at all.
+        // Pad the range explicitly whenever it's this small.
+        var minV = Math.min.apply(null, values), maxV = Math.max.apply(null, values);
+        var range = maxV - minV;
+        var pad = range > 1 ? range * 0.12 : Math.max(minV * 0.002, 25);
+        var yMin = minV - pad, yMax = maxV + pad;
+
+        if(equityChart){
+          equityChart.data.labels = labels;
+          equityChart.data.datasets[0].data = values;
+          equityChart.data.datasets[0].borderColor = lineColor;
+          equityChart.data.datasets[0].pointBackgroundColor = lineColor;
+          equityChart.data.datasets[0].backgroundColor = fillColor;
+          equityChart.options.scales.y.min = yMin;
+          equityChart.options.scales.y.max = yMax;
+          equityChart.update("none");
+          return;
+        }
+
+        equityChart = new Chart(canvas.getContext("2d"), {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [{
+              data: values,
+              borderColor: lineColor,
+              backgroundColor: fillColor,
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              pointBackgroundColor: lineColor,
+              fill: true,
+              // Monotone cubic interpolation, not the default Catmull-Rom spline -
+              // the default can overshoot past a sharp local peak/trough, which
+              // was clipping the line against the chart's top edge on a fast
+              // reversal. Monotone interpolation never draws outside the range
+              // of the points it's smoothing between.
+              cubicInterpolationMode: "monotone",
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 250 },
+            interaction: { mode: "index", intersect: false },
+            scales: {
+              x: {
+                grid: { color: "rgba(255,255,255,0.06)" },
+                ticks: { color: "#6b6b76", font: { family: "IBM Plex Mono", size: 10 }, maxTicksLimit: 6, autoSkip: true },
+              },
+              y: {
+                min: yMin,
+                max: yMax,
+                grid: { color: "rgba(255,255,255,0.06)" },
+                ticks: {
+                  color: "#6b6b76",
+                  font: { family: "IBM Plex Mono", size: 10 },
+                  callback: function(v){ return "$" + Number(v).toLocaleString(); },
+                },
+              },
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: "#141419",
+                borderColor: "#26262e",
+                borderWidth: 1,
+                titleFont: { family: "IBM Plex Mono", size: 11 },
+                bodyFont: { family: "IBM Plex Mono", size: 12 },
+                callbacks: {
+                  title: function(items){ return equityTooltipLabels[items[0].dataIndex]; },
+                  label: function(ctx){ return "$" + Number(ctx.parsed.y).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); },
+                },
+              },
+            },
+          },
+        });
+      }
+
+      // Matrix digital-rain, purely decorative. Ignores prefers-reduced-motion
+      // deliberately - it carries no information, so there's no accessibility
+      // harm in always rendering it.
+      function initMatrixRain(){
+        var canvas = document.getElementById("matrix-rain");
+        if(!canvas) return;
+        var ctx = canvas.getContext("2d");
+        var glyphs = "01アイウエオカキクケコサシスセソタチツテト";
+        var fontSize = 14;
+        var columns, drops, speeds;
+
+        // getBoundingClientRect() can return 0x0 if layout hasn't settled yet -
+        // retry on the next frame instead of accepting a zero-size measurement.
+        function resize(){
+          var rect = canvas.parentElement.getBoundingClientRect();
+          if(rect.width === 0 || rect.height === 0){
+            requestAnimationFrame(resize);
+            return;
+          }
+          // Always sync the canvas's own pixel buffer to its current size -
+          // this is what prevents CSS from stretching a stale bitmap - but
+          // only reseed the falling drops when the column count (the width)
+          // actually changes. Typing only grows the container taller, never
+          // wider, so this leaves every drop's position untouched through an
+          // entry's whole typing animation, only restarting on a real resize.
+          canvas.width = rect.width;
+          canvas.height = rect.height;
+          var newColumns = Math.floor(canvas.width / fontSize);
+          if(newColumns === columns) return;
+          columns = newColumns;
+          drops = new Array(columns).fill(0).map(function(){ return Math.random() * -50; });
+          // Every column at the same rate reads as a rigid marching grid; a
+          // per-column speed multiplier breaks the lockstep.
+          speeds = new Array(columns).fill(0).map(function(){ return 0.5 + Math.random(); });
+        }
+        resize();
+        window.addEventListener("resize", resize);
+        window.addEventListener("load", resize);
+        if(document.fonts && document.fonts.ready){ document.fonts.ready.then(resize); }
+        // The container's own height changes as content types in - a long
+        // entry can grow the terminal well past its usual size. That's not a
+        // window resize, so it never re-measured: the canvas's pixel buffer
+        // stayed at its old resolution while CSS kept scaling it to fill the
+        // new, taller box - the visible stretch. A ResizeObserver on the
+        // container itself catches that too, not just the window's own size.
+        // Fires on every line-wrap during typing, but resize() itself only
+        // reseeds the rain on an actual width change (see above), so this
+        // stays cheap and invisible through an entry's whole typing animation.
+        if(typeof ResizeObserver !== "undefined"){
+          new ResizeObserver(resize).observe(canvas.parentElement);
+        }
+
+        var FRAME_INTERVAL_MS = 260;
+        var lastFrameAt = 0;
+
+        function frame(now){
+          // Fade and glyph-draw advance together, once per throttled step -
+          // decoupling them would fade a glyph out well before the next one
+          // appears, producing a flicker instead of a trickle.
+          if(now - lastFrameAt >= FRAME_INTERVAL_MS){
+            lastFrameAt = now;
+            ctx.fillStyle = "rgba(0,0,0,0.28)"; // tuned for this cadence so trails
+                                                 // keep roughly the same real-world persistence
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = fontSize + "px monospace";
+            for(var i = 0; i < columns; i++){
+              var glyph = glyphs[Math.floor(Math.random() * glyphs.length)];
+              var y = drops[i] * fontSize;
+              ctx.fillStyle = Math.random() > 0.95 ? "#c8ffdc" : "#33ff66";
+              ctx.fillText(glyph, i * fontSize, y);
+              if(y > canvas.height && Math.random() > 0.975) drops[i] = 0;
+              drops[i] += speeds[i];
+            }
+          }
+          requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+      }
+
+      // One-time boot sequence on the first successful connection, not replayed
+      // on later reconnects - a dropped/restored connection just goes straight
+      // back to "Live". Text is original, in a terse computer-readout register.
+      // The terminal waits for this to finish before showing anything, so it
+      // reads as "wakes up, then reveals what happened" - see updateLogGated().
+      var bootSequenceStarted = false;
+      var bootSequenceDone = false;
+      var pendingLogUpdate = null;
+
+      function runBootSequence(label){
+        bootSequenceStarted = true;
+        // The banner's dot+label stays a simple two-state indicator; the real
+        // narration happens in the terminal's own title bar, where it's gating
+        // something visible.
+        var termTitle = document.getElementById("terminal-title");
+        label.textContent = "Connected";
+        if(termTitle) termTitle.textContent = "REQUESTING UMBILICAL…";
+        setTimeout(function(){
+          if(termTitle) termTitle.textContent = "MU/TH/UR 8400 PROCESSING…";
+        }, 2200);
+        setTimeout(function(){
+          if(termTitle) termTitle.textContent = "UMBILICAL ESTABLISHED…";
+        }, 4400);
+        setTimeout(function(){
+          label.textContent = "Live";
+          if(termTitle) termTitle.textContent = "MU/TH/UR 8400 IS LISTENING";
+          var termBar = document.getElementById("terminal-bar");
+          if(termBar){
+            termBar.classList.remove("tb-connecting");
+            termBar.classList.add("tb-live");
+          }
+          bootSequenceDone = true;
+          // A beat after connecting before the log starts printing, so the
+          // status line registers before the terminal starts talking.
+          if(pendingLogUpdate){
+            var pu = pendingLogUpdate;
+            pendingLogUpdate = null;
+            setTimeout(function(){ updateLog(pu.logData, pu.logErr); }, 1500);
+          }
+        }, 6600);
+      }
+
+      // The log terminal's entry point from render()/the demo timer - holds
+      // the update until the boot sequence visually finishes, then applies
+      // the latest data (not every intermediate push).
+      function updateLogGated(logData, logErr){
+        if(bootSequenceDone) updateLog(logData, logErr);
+        else pendingLogUpdate = {logData: logData, logErr: logErr};
+      }
+
+      function setLive(ok){
+        var dot = document.getElementById("live-dot");
+        var label = document.getElementById("live-label");
+        dot.className = "dot-live " + (ok ? "ok" : "err");
+        if(!ok){
+          label.textContent = "Reconnecting…";
+          return;
+        }
+        if(!bootSequenceStarted) runBootSequence(label);
+        else label.textContent = "Live";
+      }
+
+      var everRendered = false;
+
+      function onLoadFailure(){
+        // The "Reconnecting…" dot already says enough - don't clobber good data
+        // still on screen with a raw error. Only show a placeholder if nothing
+        // has loaded yet.
+        setLive(false);
+        if(!everRendered){
+          document.getElementById("positions").innerHTML = '<p class="empty">Waiting for data…</p>';
+        }
+      }
+
+      function loadOnce(){
+        fetch("/api/status", {cache:"no-store"})
+          .then(function(r){
+            if(!r.ok) throw new Error("http_" + r.status);
+            return r.json();
+          })
+          .then(function(data){ render(data); everRendered = true; setLive(true); })
+          .catch(onLoadFailure);
+      }
+
+      // True push, not polling: one connection, updated the instant the
+      // server's poll publishes a change (POLL_INTERVAL_SECONDS in app.py).
+      // EventSource reconnects on its own after a drop, so no manual
+      // retry/backoff logic is needed here.
+      function connectStream(){
+        if(typeof EventSource === "undefined"){
+          loadOnce();
+          setInterval(loadOnce, 30000);
+          return;
+        }
+        var es = new EventSource("/api/stream");
+        es.onmessage = function(evt){
+          try{
+            render(JSON.parse(evt.data));
+            everRendered = true;
+            setLive(true);
+          } catch(e){ /* malformed frame - the next push will correct it */ }
+        };
+        es.onerror = onLoadFailure;
+      }
+
+      // America/New_York, same as fmtTime() and for the same reason - this
+      // is narrating a US market, not the viewer's own local clock. 24-hour,
+      // matching fmtTime().
+      function tickTerminalClock(){
+        var el = document.getElementById("tbar-clock");
+        if(!el) return;
+        el.textContent = new Date().toLocaleTimeString("en-US", {timeZone: "America/New_York", hour12: false, hour:"2-digit", minute:"2-digit", second:"2-digit"});
+      }
+      loadArchiveNav();
+
+      if(ARCHIVE_DATE){
+        // A closed day's archive is a static read - no SSE connection, no
+        // matrix rain (its canvas lives in the now-hidden live section), no
+        // boot sequence.
+        renderArchivePage(ARCHIVE_DATE);
+      } else {
+        tickTerminalClock();
+        setInterval(tickTerminalClock, 1000);
+        initMatrixRain();
+        connectStream();
+      }
+    })();
+    </script>
+    </body>
+    </html>
+kind: ConfigMap
+metadata:
+  name: muthur-status-web-static
+  namespace: default

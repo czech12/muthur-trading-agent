@@ -1,0 +1,62 @@
+<svg width="960" height="736" viewBox="0 0 960 736" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MU/TH/UR 8400 position monitor loop: every 5 minutes, with no LLM call, it checks each open position against Claude's own exit plan and a config-driven percentage fallback, then closes the whole position group in one order through the same Alpaca MCP server, skipping the Risk Gate since closing needs no new approval">
+  <defs>
+    <radialGradient id="loopGlow" cx="50%" cy="0%" r="75%">
+      <stop offset="0%" stop-color="#33ff66" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#33ff66" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arrowDim" markerUnits="userSpaceOnUse" markerWidth="15" markerHeight="15" refX="12" refY="6.75" orient="auto">
+      <path d="M0,0 L13.5,6.75 L0,13.5 Z" fill="#6b6b76"/>
+    </marker>
+    <marker id="arrowGate" markerUnits="userSpaceOnUse" markerWidth="15" markerHeight="15" refX="12" refY="6.75" orient="auto">
+      <path d="M0,0 L13.5,6.75 L0,13.5 Z" fill="#33ff66"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="736" fill="#0a0a0d"/>
+  <rect width="960" height="736" fill="url(#loopGlow)"/>
+
+  <rect x="20" y="20" width="920" height="696" rx="16" fill="#000000" stroke="#1c8f3d" stroke-width="1.5"/>
+  <line x1="20" y1="80" x2="940" y2="80" stroke="#1c8f3d" stroke-width="1"/>
+  <circle cx="54" cy="50" r="4.5" fill="#33ff66"/>
+  <circle cx="70" cy="50" r="4.5" fill="#33ff66"/>
+  <circle cx="86" cy="50" r="4.5" fill="#33ff66"/>
+  <text x="104" y="54" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="11" font-weight="700" fill="#9fffb8" letter-spacing="1">MU/TH/UR 8400 — POSITION MONITOR LOOP</text>
+  <text x="908" y="54" text-anchor="end" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="10" font-weight="700" fill="#9fffb8" letter-spacing="1">NOSTROMO</text>
+
+  <rect x="40" y="94" width="880" height="476" rx="10" fill="#0a0a0d" stroke="#26262e"/>
+  <text x="58" y="115" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="700" fill="#6b6b76" letter-spacing="1.5">EVERY 5 MINUTES · NO LLM CALL</text>
+
+  <rect x="140" y="134" width="330" height="100" rx="10" fill="#141419" stroke="#1c8f3d" stroke-width="1.5"/>
+  <text x="305" y="164" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="17" font-weight="700" fill="#f5f5f7">EXIT PLAN</text>
+  <text x="305" y="186" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="12.5" fill="#a8a8b3">take-profit · stop-loss · invalidation</text>
+  <text x="305" y="206" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="11" fill="#6b6b76">set by the Daily Agent Loop</text>
+
+  <rect x="490" y="134" width="330" height="100" rx="10" fill="#141419" stroke="#1c8f3d" stroke-width="1.5"/>
+  <text x="655" y="164" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="17" font-weight="700" fill="#f5f5f7">CONFIG FALLBACK</text>
+  <text x="655" y="186" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="12.5" fill="#a8a8b3">stop-loss % · take-profit %</text>
+  <text x="655" y="206" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="11" fill="#6b6b76">fills only what the plan skips</text>
+
+  <path d="M 305,234 L 305,260 L 480,260" fill="none" stroke="#6b6b76" stroke-width="1.5"/>
+  <path d="M 655,234 L 655,260 L 480,260" fill="none" stroke="#6b6b76" stroke-width="1.5"/>
+  <path d="M 480,260 L 480,280" fill="none" stroke="#6b6b76" stroke-width="1.5" marker-end="url(#arrowDim)"/>
+
+  <rect x="280" y="280" width="400" height="90" rx="10" fill="#141419" stroke="#1c8f3d" stroke-width="1.5"/>
+  <text x="480" y="313" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="19" font-weight="700" fill="#f5f5f7">POSITION MONITOR LOOP</text>
+  <text x="480" y="334" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="13" fill="#a8a8b3">checks every open position, per group</text>
+
+  <path d="M 480,370 L 480,460" fill="none" stroke="#33ff66" stroke-width="2.5" marker-end="url(#arrowGate)"/>
+  <text x="520" y="400" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="700" fill="#9fffb8">close whole group</text>
+  <text x="520" y="419" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="12" fill="#6b6b76">skips the Risk Gate</text>
+  <text x="520" y="436" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="12" fill="#6b6b76">closing needs no new approval</text>
+
+  <rect x="280" y="460" width="400" height="90" rx="10" fill="#141419" stroke="#1c8f3d" stroke-width="1.5"/>
+  <text x="480" y="493" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="18" font-weight="700" fill="#f5f5f7">ALPACA MCP SERVER</text>
+  <text x="480" y="514" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="14" fill="#a8a8b3">stdio subprocess</text>
+  <text x="480" y="533" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="12" fill="#6b6b76">one order per group, all legs together</text>
+
+  <rect x="280" y="616" width="400" height="76" rx="10" fill="#141419" stroke="#1c8f3d" stroke-width="1.5"/>
+  <text x="480" y="649" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="18" font-weight="700" fill="#f5f5f7">ALPACA TRADING API</text>
+  <text x="480" y="670" text-anchor="middle" font-family="Consolas, 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace" font-size="14" fill="#a8a8b3">paper account</text>
+
+  <path d="M 480,550 L 480,616" fill="none" stroke="#6b6b76" stroke-width="1.5" marker-end="url(#arrowDim)"/>
+</svg>

@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alpaca-hackathon-agent
+  namespace: alpaca-hackathon-agent
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: alpaca-hackathon-agent
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: alpaca-hackathon-agent
+    spec:
+      # Official contest account for the judged trading week. These values are
+      # committed here directly, rather than patched onto a dev-account base
+      # at go-live, so the parent Kustomization's periodic reconcile from git
+      # can never drift the deployment back to a different account.
+      containers:
+        - name: agent
+          image: $HARBOR/homelab/alpaca-hackathon-agent:v0.14.3
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: STATE_PATH
+              value: /app/state/history-contest.json
+            - name: EXIT_PLANS_PATH
+              value: /app/state/exit-plans-contest.json
+            - name: EXPECTED_ACCOUNT_NUMBER
+              value: $CONTEST_ACCOUNT_NUMBER
+          envFrom:
+            - secretRef:
+                name: alpaca-hackathon-agent-contest
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import os,time,sys; p=os.environ['HEARTBEAT_PATH']; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<90 else 1)"
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 200m
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - mountPath: /app/config/agent.yaml
+              name: config
+              readOnly: true
+              subPath: agent.yaml
+            - mountPath: /app/state
+              name: state
+      imagePullSecrets:
+        - name: harbor-push-auth
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - configMap:
+            name: agent-config
+          name: config
+        - name: state
+          persistentVolumeClaim:
+            claimName: agent-state

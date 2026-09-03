@@ -1,0 +1,94 @@
+---
+# Read-only status page for MU/TH/UR 8400. Reaches Grafana's Loki datasource
+# proxy over an already-open internal path; hardened as if it were a new
+# hole regardless (read-only root filesystem, no privileges, no
+# order-placing code path). The real access control is the Grafana
+# credential (Viewer-role only), not the network path.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: muthur-status-web
+  namespace: default
+  labels:
+    app: muthur-status-web
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 600
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: muthur-status-web
+  template:
+    metadata:
+      labels:
+        app: muthur-status-web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: muthur-status-web
+          image: $HARBOR/homelab/muthur-status-web:v0.2.4
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - secretRef:
+                name: muthur-status-web-secret
+          volumeMounts:
+            # Frontend served from a ConfigMap, not baked into the image - a
+            # pure HTML/CSS/JS change ships via git commit + Flux reconcile
+            # alone, no rebuild or restart.
+            - name: static-content
+              mountPath: /app/static
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 10
+      imagePullSecrets:
+        - name: harbor-push-auth
+      volumes:
+        - name: static-content
+          configMap:
+            name: muthur-status-web-static
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: muthur-status-web
+  namespace: default
+spec:
+  selector:
+    app: muthur-status-web
+  ports:
+    - name: http
+      targetPort: 8080
+      port: 80

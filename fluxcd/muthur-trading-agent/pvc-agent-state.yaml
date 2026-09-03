@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: agent-state
+  namespace: alpaca-hackathon-agent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+  storageClassName: longhorn
+  volumeMode: Filesystem
+  # Pinned to a specific existing PV rather than dynamically provisioned, so
+  # this claim always binds to the volume holding the agent's persisted
+  # state, not a fresh empty one.
+  volumeName: pvc-cb96976e-e734-4c9c-90b8-978db26ca2eb
